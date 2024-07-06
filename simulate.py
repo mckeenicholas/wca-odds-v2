@@ -1,22 +1,28 @@
 from competitor import competitor
-from query import *
+from query import connect, extract_results
 import passwords
 from threading import Thread
 import numpy as np
+import pandas as pd
 import time
 
-def calc_results(competitor: competitor, num_results: int, num_attempts=5, use_dnf=False):
+
+def calc_results(
+    competitor: competitor, num_results: int, num_attempts=5, use_dnf=False
+):
     mean = competitor.weighted_results.mean().iloc[-1]
     stdev = competitor.weighted_results.std().iloc[-1]
 
-    shape = (mean ** 2) / (stdev ** 2)
-    scale = (stdev ** 2) / mean
+    shape = (mean**2) / (stdev**2)
+    scale = (stdev**2) / mean
 
-    random_values = np.random.gamma(shape, scale, (num_results, num_attempts)).astype(int)
-    
+    random_values = np.random.gamma(shape, scale, (num_results, num_attempts)).astype(
+        int
+    )
+
     if use_dnf:
         mask = np.random.rand(*random_values.shape)
-        replace_indices = np.where(mask < competitor.dnf_rate) 
+        replace_indices = np.where(mask < competitor.dnf_rate)
 
         random_values[replace_indices] = np.iinfo(np.int32).max
 
@@ -25,15 +31,19 @@ def calc_results(competitor: competitor, num_results: int, num_attempts=5, use_d
     means = np.mean(trimmed, axis=1)
 
     competitor.generated_results = means
-    
-def run_simulations(names: list[str], num_simulations=100000):
-    num_competitors = len(names)
+
+
+def run_simulations(names: list[str], num_simulations=10000):
     start = time.time()
 
     conn = connect(passwords.HOST, passwords.PSQL_USERNAME, passwords.PSQL_PASSWORD)
-    competitors = extract_results(conn, names, event='555', halflife='30 days')
+    competitors = extract_results(conn, names, event="333", halflife="30 days")
+    num_competitors = len(competitors)
 
-    threads = [Thread(target=calc_results, args=(result, num_simulations, 5, True)) for result in competitors]
+    threads = [
+        Thread(target=calc_results, args=(result, num_simulations, 5, True))
+        for result in competitors
+    ]
 
     for thread in threads:
         thread.start()
@@ -51,11 +61,14 @@ def run_simulations(names: list[str], num_simulations=100000):
     podium_by_person = np.bincount(podium_indicies, minlength=num_competitors)
 
     end = time.time()
-
-    print(f"wcaid     |    win% | podium% ")
-    print(f"----------+---------+----------")
-
-    for idx, competitor in enumerate(competitors):
-        print(f"{competitor.id}| {win_by_person[idx] * 100 / num_simulations:.3f}% | {podium_by_person[idx] * 100 / num_simulations:.3f}%") 
-
     print(f"ran {num_simulations} simulations in {end - start:.3f} seconds")
+
+    competitor_ids = [competitor.id for competitor in competitors]
+
+    data = {
+        "id": competitor_ids,
+        "win": win_by_person / num_simulations,
+        "podium": podium_by_person / num_simulations,
+    }
+
+    return pd.DataFrame(data).sort_values(by="win", ascending=False)
