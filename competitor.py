@@ -5,7 +5,7 @@ import numpy as np
 
 
 @dataclass
-class competitor:
+class Competitor:
     id: str
     results: pd.DataFrame
     weighted_results: pd.Series

@@ -1,19 +1,24 @@
-import requests
+from requests import get
+
 
 def get_pb_rank(person, event):
-    for result in person['personalBests']:
-        if result['eventId'] == event and result['type'] == "average":
-            return result['worldRanking']
+    for result in person["personalBests"]:
+        if result["eventId"] == event and result["type"] == "average":
+            return result["worldRanking"]
 
-def get_competitors(compId: str, event, num: int=16):
+
+def get_competitors(compId: str, event, num: int = 16):
     url = f"https://api.worldcubeassociation.org/competitions/{compId}/wcif/public"
-    data = requests.get(url).json()
+    data = get(url).json()
 
     competitors = data["persons"]
     competitors_in_event = []
 
     for competitor in competitors:
-        if competitor['registration'] is not None and event in competitor['registration']['eventIds']:
+        if (
+            competitor["registration"] is not None
+            and event in competitor["registration"]["eventIds"]
+        ):
             rank = get_pb_rank(competitor, event)
             if rank is not None:
                 competitors_in_event.append({"id": competitor["wcaId"], "rank": rank})
