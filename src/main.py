@@ -1,6 +1,7 @@
 # from csvparser import CSVParser
 from request_info import get_competitors
 from psqlconnection import PSQLConnection
+from csvparser import CSVParser
 from dbwrapper import DBWrapper
 from argparse import ArgumentParser
 from competitionsimulator import CompetitionSimulator
@@ -42,8 +43,8 @@ def main():
             password=password,
             connect_args={"options": "-csearch_path=wca_results"},
         )
-    elif args.database == "python":
-        raise NotImplementedError
+    elif args.database == "csv":
+        db_connection = CSVParser()
 
     # del competitors[0]
 
