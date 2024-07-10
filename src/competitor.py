@@ -7,6 +7,7 @@ import numpy as np
 @dataclass
 class Competitor:
     id: str
+    name: str
     results: pd.DataFrame
     weighted_results: pd.Series
     dnf_rate: int

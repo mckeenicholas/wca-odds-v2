@@ -1,5 +1,5 @@
 passwords.py
-wca_results/results_dump
+db/results_dump
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

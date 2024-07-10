@@ -1,4 +1,5 @@
 from requests import get
+from collections import namedtuple
 
 
 def get_pb_rank(person, event):
@@ -21,8 +22,14 @@ def get_competitors(compId: str, event, num: int = 16):
         ):
             rank = get_pb_rank(competitor, event)
             if rank is not None:
-                competitors_in_event.append({"id": competitor["wcaId"], "rank": rank})
+                competitors_in_event.append(
+                    {
+                        "id": competitor["wcaId"],
+                        "name": competitor["name"],
+                        "rank": rank,
+                    }
+                )
 
     competitors_in_event.sort(key=lambda x: x["rank"])
 
-    return [i["id"] for i in competitors_in_event[:num]]
+    return [{"id": i["id"], "name": i["name"]} for i in competitors_in_event[:num]]

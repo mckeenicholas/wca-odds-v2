@@ -1,10 +1,13 @@
 from threading import Thread
+from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 from pandas.core.api import DataFrame as DataFrame
 from competitionsimulator import CompetitionSimulator
 from competitor import Competitor
 from formats import event_formats
+from time import perf_counter
+from multi_sim import multi_simulation_thread
 
 
 class AlphaBetaSimulation(CompetitionSimulator):
@@ -15,12 +18,14 @@ class AlphaBetaSimulation(CompetitionSimulator):
         self.event = None
 
     def prepare_data(
-        self, event: str, competitors: list[str], halflife: str = "180 days"
+        self, event: str, competitors: list[dict[str, str]], halflife: str = "180 days"
     ):
         self.competitors = []
         self.event = event
 
-        data = self.db_wrapper.query(event, competitors)
+        name_mappings = {i["id"]: i["name"] for i in competitors}
+
+        data = self.db_wrapper.query(event, name_mappings.keys())
         num_attempts = event_formats[self.event]["num_attempts"]
 
         for id, df in data.items():
@@ -43,6 +48,7 @@ class AlphaBetaSimulation(CompetitionSimulator):
 
             competitor = Competitor(
                 id=id,
+                name=name_mappings[id],
                 results=results,
                 weighted_results=weighted_series,
                 dnf_rate=dnf_rate,
@@ -51,20 +57,18 @@ class AlphaBetaSimulation(CompetitionSimulator):
             self.competitors.append(competitor)
 
     def run_simulation(self, count: int):
+        start_t = perf_counter()
         num_competitors = len(self.competitors)
 
-        threads = [
-            Thread(target=self._simulation_thread, args=(competitor, count, True))
-            for competitor in self.competitors
+        args = [
+            (comp.weighted_results, comp.dnf_rate, self.event, count)
+            for comp in self.competitors
         ]
 
-        for thread in threads:
-            thread.start()
+        with Pool() as pool:
+            results = pool.starmap(multi_simulation_thread, args)
 
-        for thread in threads:
-            thread.join()
-
-        all_results = np.stack([c.generated_results for c in self.competitors])
+            all_results = np.stack([result for result in results])
 
         sorted_indices = np.argsort(all_results, axis=0)
 
@@ -74,42 +78,16 @@ class AlphaBetaSimulation(CompetitionSimulator):
         win_by_person = np.bincount(win_indices, minlength=num_competitors)
         podium_by_person = np.bincount(podium_indices, minlength=num_competitors)
 
-        competitor_ids = [competitor.id for competitor in self.competitors]
+        competitor_names = [competitor.name for competitor in self.competitors]
 
         data = {
-            "id": competitor_ids,
+            "name": competitor_names,
             "win": win_by_person / count,
             "podium": podium_by_person / count,
         }
 
+        end_t = perf_counter()
+
+        print(f"Comleted {count} simulations in {end_t-start_t:2f} seconds")
+
         return pd.DataFrame(data).sort_values(by="win", ascending=False)
-
-    def _simulation_thread(self, competitor, count: int, use_dnf=False):
-        mean = competitor.weighted_results.mean().iloc[-1]
-        stdev = competitor.weighted_results.std().iloc[-1]
-
-        shape = (mean**2) / (stdev**2)
-        scale = (stdev**2) / mean
-
-        num_attempts = event_formats[self.event]["num_attempts"]
-        format = event_formats[self.event]["default_format"]
-
-        random_values = np.random.gamma(shape, scale, (count, num_attempts)).astype(int)
-
-        if use_dnf:
-            mask = np.random.rand(*random_values.shape)
-            replace_indices = np.where(mask < competitor.dnf_rate)
-
-            random_values[replace_indices] = np.iinfo(np.int32).max
-
-        sorted_by_instance = np.sort(random_values, axis=1)
-
-        if format == "a":
-            trimmed = sorted_by_instance[:, 1:4]
-            results = np.mean(trimmed, axis=1)
-        elif format == "m":
-            results = np.mean(sorted_by_instance, axis=1)
-        else:
-            results = sorted_by_instance[:, 0]
-
-        competitor.generated_results = results
