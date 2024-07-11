@@ -1,4 +1,5 @@
 from requests import get
+from requests.exceptions import HTTPError
 from collections import namedtuple
 
 
@@ -10,7 +11,13 @@ def get_pb_rank(person, event):
 
 def get_competitors(compId: str, event, num: int = 16):
     url = f"https://api.worldcubeassociation.org/competitions/{compId}/wcif/public"
-    data = get(url).json()
+    response = get(url)
+    data = response.json()
+
+    if response.status_code != 200:
+        raise HTTPError(
+            f"Error {response.status_code}: Competition with id {compId} not found."
+        )
 
     competitors = data["persons"]
     competitors_in_event = []
