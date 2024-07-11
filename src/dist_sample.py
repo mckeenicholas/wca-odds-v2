@@ -1,25 +1,64 @@
-from threading import Thread
 from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 from pandas.core.api import DataFrame as DataFrame
+
 from competitionsimulator import CompetitionSimulator
 from competitor import Competitor
 from formats import event_formats
-from time import perf_counter
 from multi_sim import multi_simulation_thread
 
 
-class AlphaBetaSimulation(CompetitionSimulator):
+class DistributionSamplingSimulator(CompetitionSimulator):
+    """
+    A class representing a distribution sampling simulator for competition results.
+
+    Attributes
+    ----------
+    competitors : list
+        List of Competitor objects representing competitors in the simulation.
+    event : str
+        The event identifier for which the simulation is being performed.
+
+    Methods
+    -------
+    __init__(self, db_wrapper)
+        Initializes the DistributionSamplingSimulator with a database wrapper.
+
+    prepare_data(self, event, competitors, halflife='180 days')
+        Prepares data for simulation based on competitors and event details.
+
+    run_simulation(self, count) -> pd.DataFrame
+        Runs the simulation for the given number of times and returns simulation results.
+    """
 
     def __init__(self, db_wrapper):
-        CompetitionSimulator.__init__(self, db_wrapper)
+        """
+        Initializes the DistributionSamplingSimulator with a database wrapper.
+
+        Parameters
+        ----------
+        db_wrapper : DBWrapper
+            Database wrapper providing access to competition data.
+        """
+        super().__init__(db_wrapper)
         self.competitors = []
-        self.event = None
 
     def prepare_data(
         self, event: str, competitors: list[dict[str, str]], halflife: str = "180 days"
     ):
+        """
+        Prepares data for simulation.
+
+        Parameters
+        ----------
+        event : str
+            The event for which to prepare data.
+        competitors : list[dict[str, str]]
+            List of competitors with their IDs and names.
+        halflife : str, optional
+            Halflife for exponential weighted moving average (default is '180 days').
+        """
         self.competitors = []
         self.event = event
 
@@ -56,8 +95,20 @@ class AlphaBetaSimulation(CompetitionSimulator):
 
             self.competitors.append(competitor)
 
-    def run_simulation(self, count: int):
-        start_t = perf_counter()
+    def run_simulation(self, count: int) -> pd.DataFrame:
+        """
+        Runs the simulation for the given number of times.
+
+        Parameters
+        ----------
+        count : int
+            Number of simulations to run.
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with simulation results, including win and podium probabilities.
+        """
         num_competitors = len(self.competitors)
 
         args = [
@@ -68,7 +119,7 @@ class AlphaBetaSimulation(CompetitionSimulator):
         with Pool() as pool:
             results = pool.starmap(multi_simulation_thread, args)
 
-            all_results = np.stack([result for result in results])
+        all_results = np.stack([result for result in results])
 
         sorted_indices = np.argsort(all_results, axis=0)
 
@@ -85,9 +136,5 @@ class AlphaBetaSimulation(CompetitionSimulator):
             "win": win_by_person / count,
             "podium": podium_by_person / count,
         }
-
-        end_t = perf_counter()
-
-        print(f"Comleted {count} simulations in {end_t-start_t:2f} seconds")
 
         return pd.DataFrame(data).sort_values(by="win", ascending=False)

@@ -1,14 +1,48 @@
-from formats import event_formats
 import numpy as np
+from formats import event_formats
 
 
-# This is the actual simulation thread, it is seperate from the object
-# as there are some class variables are not pickleable
 def multi_simulation_thread(results, dnf_rate, event, count):
+    """
+    Perform a multi-threaded simulation of competition results.
+
+    This function simulates competition results based on a gamma distribution,
+    optionally introducing Did Not Finish (DNF) rates.
+
+    Parameters
+    ----------
+    results : numpy.ndarray
+        An array of historical results to derive simulation parameters.
+    dnf_rate : float
+        The rate of Did Not Finish (DNF) occurrences in the simulation.
+    event : str
+        The identifier of the event being simulated.
+    count : int
+        The number of simulations to perform.
+
+    Returns
+    -------
+    numpy.ndarray
+        An array of simulated competition results based on the specified event format.
+
+    Notes
+    -----
+    The simulation uses the gamma distribution to model the variability in competition results.
+    If `format` is 'a', the WCA Ao5 calculation is used.
+    If `format` is 'm', the mean is taken across all attempts.
+    Otherwise, the best result of the attempts is returned.
+
+    See Also
+    --------
+    event_formats : A dictionary defining event-specific formats and rules.
+    """
     use_dnf = True
 
     mean = results.mean().iloc[-1]
     stdev = results.std().iloc[-1]
+
+    if np.isnan(stdev):
+        stdev = 0.01
 
     shape = (mean**2) / (stdev**2)
     scale = (stdev**2) / mean

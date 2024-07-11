@@ -10,13 +10,20 @@ from psqlconnection import PSQLConnection
 from csvparser import CSVParser
 from dbwrapper import DBWrapper
 from competitionsimulator import CompetitionSimulator
-from alphabetadist import AlphaBetaSimulation
+from dist_sample import DistributionSamplingSimulator
 
 
 @contextmanager
 def verbose_logging(verbose, message):
     """
     Context manager for verbose logging with timing.
+
+    Parameters
+    ----------
+    verbose : bool
+        Boolean flag on whether to print message.
+    message : str
+        Message to print.
     """
     if verbose:
         print(message)
@@ -28,6 +35,16 @@ def verbose_logging(verbose, message):
 
 
 def print_results(results: DataFrame, event: str) -> None:
+    """
+    Formats and prints the results table in a human-readable way.
+
+    Parameters
+    ----------
+    results : pandas.DataFrame
+        A pandas DataFrame containing the names and results of each competitor.
+    event : str
+        The event the simulation was run for.
+    """
     max_name_length = results["name"].str.len().max() + 2
     header_name = "Name".ljust(max_name_length)
 
@@ -91,7 +108,9 @@ def main():
 
     del competitors[0]
 
-    results_calculator: CompetitionSimulator = AlphaBetaSimulation(db_connection)
+    results_calculator: CompetitionSimulator = DistributionSamplingSimulator(
+        db_connection
+    )
 
     with verbose_logging(args.verbose, "Fetching competitor results"):
         results_calculator.prepare_data(args.event, competitors)

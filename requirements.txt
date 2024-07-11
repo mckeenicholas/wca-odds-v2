@@ -1,3 +1,5 @@
 numpy==1.24.2
 pandas==2.2.2
-pyarrow==16.1.0
+python-dotenv==1.0.1
+Requests==2.32.3
+SQLAlchemy==2.0.29
