@@ -22,7 +22,7 @@ class CSVParser(DBWrapper):
         Initializes the CSVParser with paths to CSV files and updates the feather file if necessary.
 
     query(self, event: str, names: list[str], length: int=365) -> dict[str, DataFrame]
-        Queries data from the joined feather file based on event and competitor names.
+        Queries data from the joined feather file based on event and competitor names, up to length days prior.
 
     _check_file_update(self, results_path: str, comp_path: str, feather_path: str) -> None
         Checks and updates the feather file if CSV files are modified.
@@ -54,7 +54,7 @@ class CSVParser(DBWrapper):
         self, event: str, names: list[str], length: int = 365
     ) -> dict[str, DataFrame]:
         """
-        Queries data from the joined feather file based on event and competitor names.
+        Queries data from the joined feather file based on event and competitor names, up to length days prior.
 
         Parameters
         ----------
@@ -70,25 +70,25 @@ class CSVParser(DBWrapper):
         dict[str, DataFrame]
             A dictionary mapping person IDs to pandas DataFrames of query results.
         """
+        offset = pd.Timestamp.today() - pd.DateOffset(days=length)
+
         try:
-            results = pd.read_feather(JOINED_RESULTS_PATH)
             filtered_results = {}
+            results = pd.read_feather(JOINED_RESULTS_PATH)
             for name in names:
-                res = results.query(r"eventId == @event and personId == @name")
+                res = results.query(
+                    "eventId == @event and personId == @name and date >= @offset"
+                )
                 res = res[
                     [
-                        "year",
-                        "month",
-                        "day",
                         "value1",
                         "value2",
                         "value3",
                         "value4",
                         "value5",
+                        "date",
                     ]
                 ]
-                res["date"] = pd.to_datetime(res[["year", "month", "day"]])
-                res.drop(columns=["year", "month", "day"], inplace=True)
                 filtered_results[name] = res
 
             return filtered_results
@@ -135,6 +135,10 @@ class CSVParser(DBWrapper):
                 merged_df = pd.merge(
                     competitions_df, results_df, left_on="id", right_on="competitionId"
                 )
+
+                merged_df["date"] = pd.to_datetime(merged_df[["year", "month", "day"]])
+                merged_df.drop(columns=["year", "month", "day"], inplace=True)
+
                 merged_df.to_feather(feather_path)
         except Exception as e:
             print(f"Error updating file: {e}")
