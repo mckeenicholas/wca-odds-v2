@@ -106,8 +106,6 @@ def main():
     elif args.database == "csv":
         db_connection = CSVParser()
 
-    del competitors[0]
-
     results_calculator: CompetitionSimulator = DistributionSamplingSimulator(
         db_connection
     )
